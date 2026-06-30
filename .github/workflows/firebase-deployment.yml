@@ -41,12 +41,86 @@ jobs:
       - name: Build production artifact
         run: npm run build
 
+      - name: Record deployment start time
+        id: deploy_start
+        shell: bash
+        run: echo "epoch=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Deploy preview or production channel
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        id: firebase_deploy
+        continue-on-error: true
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TASKLY_DIITIKAZ_2026 }}
           projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
           channelId: ${{ github.event_name == 'push' && 'live' || '' }}
           expires: 7d
+
+      - name: Verify deployment after a transient Firebase API error
+        if: steps.firebase_deploy.outcome == 'failure'
+        id: verify_deploy
+        shell: bash
+        env:
+          DEPLOY_STARTED_EPOCH: ${{ steps.deploy_start.outputs.epoch }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TASKLY_DIITIKAZ_2026 }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TRIGGER_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          credentials_file="$RUNNER_TEMP/firebase-service-account.json"
+          channels_file="$RUNNER_TEMP/firebase-channels.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$credentials_file"
+          export GOOGLE_APPLICATION_CREDENTIALS="$credentials_file"
+
+          for attempt in 1 2 3; do
+            if npx --yes firebase-tools@15.22.3 hosting:channel:list \
+              --project "$FIREBASE_PROJECT_ID" --json > "$channels_file"; then
+              break
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "Could not verify the Firebase Hosting channel."
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from "node:fs";
+
+          const response = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/firebase-channels.json", "utf8"));
+          const channels = response.result?.channels ?? [];
+          const expectedPrefix = process.env.TRIGGER_NAME === "push" ? "live" : `pr${process.env.PR_NUMBER}-`;
+          const channel = channels.find((item) => {
+            const channelId = item.name.split("/").at(-1);
+            return expectedPrefix === "live" ? channelId === "live" : channelId.startsWith(expectedPrefix);
+          });
+
+          if (!channel || channel.release?.version?.status !== "FINALIZED") {
+            throw new Error(`No finalized Firebase channel matching ${expectedPrefix} was found.`);
+          }
+
+          const deployedAt = Date.parse(channel.updateTime) / 1000;
+          const startedAt = Number(process.env.DEPLOY_STARTED_EPOCH);
+          if (!Number.isFinite(deployedAt) || deployedAt + 5 < startedAt) {
+            throw new Error("The matching Firebase channel was not updated by this workflow run.");
+          }
+
+          console.log(`Verified Firebase deployment: ${channel.url}`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `url=${channel.url}\n`);
+          NODE
+
+      - name: Add preview URL to the pull request
+        if: github.event_name == 'pull_request' && (steps.firebase_deploy.outcome == 'success' || steps.verify_deploy.outcome == 'success')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_URL: ${{ steps.firebase_deploy.outputs.details_url || steps.verify_deploy.outputs.url }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --edit-last --create-if-none \
+            --body "Firebase Preview: $PREVIEW_URL"
