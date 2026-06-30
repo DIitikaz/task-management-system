@@ -315,11 +315,17 @@ gh secret set FIREBASE_PROJECT_ID --body $FirebaseProjectId
 
 ## צילומי מסך
 
-לאחר צילום המסכים, שמור אותם בנתיבים הבאים. ה־README יציג אותם אוטומטית:
+### המסך הראשי
 
-| תצוגת מחשב | תצוגת מובייל |
-| --- | --- |
-| ![Taskly desktop](docs/screenshots/taskly-desktop.png) | ![Taskly mobile](docs/screenshots/taskly-mobile.png) |
+![המסך הראשי של Taskly](docs/screenshots/taskly-dashboard.png)
+
+### ניהול משימות
+
+![רשימת משימות, סינון וסטטיסטיקות](docs/screenshots/taskly-tasks.png)
+
+### Firebase Preview Channel
+
+![Taskly פועלת בערוץ Preview של Firebase Hosting](docs/screenshots/taskly-firebase-preview.png)
 
 ## פתרון תקלות קצר
 
