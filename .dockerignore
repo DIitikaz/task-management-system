@@ -1,0 +1,8 @@
+.git
+.github
+.firebase
+dist
+node_modules
+README.md
+firebase-debug.log
+firebase-service-account*.json
