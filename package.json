@@ -9,6 +9,6 @@
     "build": "node scripts/build.mjs"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   }
 }

@@ -68,7 +68,7 @@ public/ (HTML + CSS + JavaScript)
 
 ## דרישות מוקדמות
 
-- Node.js 24 LTS ומעלה.
+- Node.js 22 LTS ומעלה.
 - Git.
 - Docker Desktop.
 - חשבון GitHub ו־repository שבו יש לך הרשאת Admin.
