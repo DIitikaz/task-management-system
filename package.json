@@ -1,0 +1,14 @@
+{
+  "name": "taskly-task-management-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A lightweight Hebrew task management system with LocalStorage persistence.",
+  "scripts": {
+    "check": "node --check public/app.js && node scripts/check-files.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
